@@ -1,6 +1,6 @@
 """
-FLAT - Flet Layout Application Template
-A template Flet desktop application with persistent settings, logging,
+COMPaSS - Cache Owner Management Platform and Sites System
+A desktop application for managing cache owners and sites with persistent settings, logging,
 function management, and help documentation system based on OHM's proven UI.
 """
 
@@ -15,9 +15,9 @@ from datetime import datetime
 from pathlib import Path
 
 # Configure logging
-DATA_DIR = Path.home() / "FLAT-data"
+DATA_DIR = Path.home() / "COMPaSS-data"
 os.makedirs(DATA_DIR / "logfiles", exist_ok=True)
-log_filename = DATA_DIR / "logfiles" / f"flat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+log_filename = DATA_DIR / "logfiles" / f"compass_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
 file_handler = logging.FileHandler(log_filename)
 file_handler.setLevel(logging.DEBUG)
@@ -113,14 +113,14 @@ def load_help_document(filename: str) -> str:
 
 
 def main(page: ft.Page):
-    page.title = "FLAT - Flet Layout Application Template"
+    page.title = "COMPaSS - Cache Owner Management Platform and Sites System"
     page.padding = 20
     page.window.width = 1050
     page.window.height = 900
     page.scroll = ft.ScrollMode.AUTO
 
     storage = PersistentStorage()
-    logger.info("FLAT application started")
+    logger.info("COMPaSS application started")
 
     # ------------------------------------------------------------------ helpers
 
@@ -521,15 +521,15 @@ def main(page: ft.Page):
             controls=[
                 # ---- Title
                 ft.Row([
-                    ft.Icon(ft.Icons.APARTMENT, size=28, color=ft.Colors.BLUE_700),
+                    ft.Icon(ft.Icons.EXPLORE, size=28, color=ft.Colors.BLUE_700),
                     ft.Text(
-                        "FLAT — Flet Layout Application Template",
+                        "COMPaSS — Cache Owner Management Platform and Sites System",
                         size=24,
                         weight=ft.FontWeight.BOLD,
                     ),
                 ], spacing=10),
                 ft.Text(
-                    "A template application with persistent settings, logging, and function management",
+                    "Cache Owner Management Platform and Sites System",
                     size=13,
                     color=ft.Colors.GREY_700,
                     italic=True,
@@ -707,7 +707,7 @@ def main(page: ft.Page):
     page.update()
 
     logger.info("UI initialised successfully")
-    add_log_message("FLAT application ready. Select a function to begin.")
+    add_log_message("COMPaSS application ready. Select a function to begin.")
 
 
 if __name__ == "__main__":

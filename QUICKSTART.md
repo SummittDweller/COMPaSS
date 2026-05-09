@@ -1,6 +1,6 @@
-# FLAT Quick Start Guide
+# COMPaSS Quick Start Guide
 
-Welcome to **FLAT - Flet Layout Application Template**!
+Welcome to **COMPaSS - Cache Owner Management Platform and Sites System**!
 
 This template was created from your OHM application by extracting the core framework and replacing domain-specific functionality with generic examples.
 
@@ -13,7 +13,7 @@ This template was created from your OHM application by extracting the core frame
 - **.gitignore** - Python/Flet-appropriate exclusions
 
 ### Documentation
-- **README.md** - Comprehensive guide to using and customizing FLAT
+- **README.md** - Comprehensive guide to using and customizing COMPaSS
 - **FUNCTION_1_LIST_FILES.md** - Help for example function 1
 - **FUNCTION_2_COUNT_FILES.md** - Help for example function 2
 - **FUNCTION_3_SYSTEM_INFO.md** - Help for example function 3
@@ -31,7 +31,7 @@ This template was created from your OHM application by extracting the core frame
 ## Try It Out
 
 ```bash
-cd /Users/mcfatem/GitHub/FLAT
+cd /Users/mcfatem/GitHub/COMPaSS
 ./run.sh
 ```
 
@@ -63,7 +63,7 @@ Follow the detailed instructions in **README.md** to:
 ### 3. Push to GitHub
 
 ```bash
-cd /Users/mcfatem/GitHub/FLAT
+cd /Users/mcfatem/GitHub/COMPaSS
 git remote add origin https://github.com/yourusername/your-repo.git
 git branch -M main
 git push -u origin main
@@ -118,13 +118,13 @@ If you don't like "FLAT", here are other acronym ideas for future renaming:
 - **FORGE** - Flet ORGanized Environment
 
 To rename, search and replace throughout the codebase:
-- `FLAT` → Your new name
-- `Flet Layout Application Template` → Your new tagline
-- `FLAT-data` → `YourName-data`
+- `COMPaSS` → Your new name
+- `Cache Owner Management Platform and Sites System` → Your new tagline
+- `COMPaSS-data` → `YourName-data`
 
 ## OHM Remains Unchanged
 
-As requested, the OHM directory at `/Users/mcfatem/GitHub/OHM` was not modified. All changes were made only in the new FLAT directory.
+As requested, the OHM directory at `/Users/mcfatem/GitHub/OHM` was not modified. All changes were made only in the new COMPaSS directory.
 
 You can verify:
 ```bash

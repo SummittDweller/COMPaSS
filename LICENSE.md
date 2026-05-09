@@ -1,6 +1,6 @@
 # MIT License
 
-Copyright (c) 2026 Digital.Grinnell / FLAT Contributors
+Copyright (c) 2026 Digital.Grinnell / COMPaSS Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,13 +24,13 @@ SOFTWARE.
 
 ## About This Template
 
-FLAT (Flet Layout Application Template) is based on the UI architecture developed for OHM (Oral History Manager). The template extracts and generalizes the proven patterns from OHM while removing application-specific functionality.
+COMPaSS (Cache Owner Management Platform and Sites System) is based on the UI architecture developed for OHM (Oral History Manager). The application extracts and generalizes the proven patterns from OHM while removing application-specific functionality.
 
 ### Attribution
 
 While not legally required under the MIT License, we appreciate attribution when you build applications using this template. Consider mentioning:
 
-> "Built with FLAT - Flet Layout Application Template"
-> https://github.com/Digital-Grinnell/FLAT
+> "Built with COMPaSS - Cache Owner Management Platform and Sites System"
+> https://github.com/Digital-Grinnell/COMPaSS
 
 This helps others discover the template and contributes to the open-source community.

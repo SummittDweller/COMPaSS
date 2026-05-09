@@ -1,12 +1,12 @@
-# 🏢 &nbsp; FLAT - Flet Layout Application Template
+# 🧭 &nbsp; COMPaSS - Cache Owner Management Platform and Sites System
 
-FLAT is a production-ready template for building desktop applications with [Flet](https://flet.dev). Built on the proven UI architecture from OHM (Oral History Manager), it provides a professional starting point with essential features like persistent settings, logging, function management, and help documentation.
+COMPaSS is a production-ready desktop application for managing cache owners and sites. Built on the proven UI architecture from OHM (Oral History Manager), it provides a professional platform with essential features like persistent settings, logging, function management, and help documentation.
 
 ## Features
 
 ### Core Template Features
 - **Persistent Settings**: Automatic saving/loading of window position, directories, and user preferences
-- **Professional Logging**: Timestamped log files in `~/FLAT-data/logfiles/` with real-time display
+- **Professional Logging**: Timestamped log files in `~/COMPaSS-data/logfiles/` with real-time display
 - **Function Management**: Icon-enhanced dropdown with usage tracking and workflow ordering
 - **Help Mode**: Built-in markdown help viewer for each function with copy-to-clipboard
 - **Smart Directory Management**: Collapsible directories section to maximize screen space
@@ -25,11 +25,11 @@ These examples demonstrate the function pattern and can be replaced with your ow
 
 ### Running from Source
 
-1. **Clone or copy this template**
+1. **Clone or copy this repository**
    ```bash
    cd /path/to/your/projects
-   cp -r FLAT my-new-app
-   cd my-new-app
+   git clone https://github.com/yourusername/COMPaSS.git
+   cd COMPaSS
    ```
 
 2. **Run the application**
@@ -56,7 +56,7 @@ No other dependencies required for the base template.
 ## Project Structure
 
 ```
-FLAT/
+COMPaSS/
 ├── app.py                      # Main application (715 lines - streamlined!)
 ├── run.sh                      # macOS/Linux launcher
 ├── run.bat                     # Windows launcher
@@ -76,19 +76,19 @@ FLAT/
 ### Runtime Files
 When you run the application, these are created automatically:
 ```
-~/FLAT-data/
+~/COMPaSS-data/
 ├── logfiles/                   # Application logs
-│   └── flat_YYYYMMDD_HHMMSS.log
+│   └── compass_YYYYMMDD_HHMMSS.log
 └── persistent.json             # Saved settings and state
 ```
 
-## Customizing FLAT for Your Application
+## Customizing COMPaSS for Your Application
 
 ### 1. Rename the Application
 
 Update these items throughout the codebase:
 - `page.title` in `app.py`
-- Data directory name (`FLAT-data` → `YourApp-data`)
+- Data directory name (`COMPaSS-data` → `YourApp-data`)
 - Window title and header text
 - Script headers in `run.sh` and `run.bat`
 - README title and descriptions
@@ -213,7 +213,7 @@ storage.set_ui_state("my_custom_field", "value")
 value = storage.get_ui_state("my_custom_field", default="default_value")
 ```
 
-All settings are automatically saved to `~/FLAT-data/persistent.json`.
+All settings are automatically saved to `~/COMPaSS-data/persistent.json`.
 
 ### 6. Remove Example Functions
 
@@ -226,7 +226,7 @@ Once you've built your own functions, clean up the examples:
 
 ## UI Architecture
 
-FLAT uses OHM's proven layout structure:
+COMPaSS uses OHM's proven layout structure:
 
 - **Collapsible Directories Section**: Saves vertical space once directories are set
 - **File Selection**: Always visible for quick file changes between operations
@@ -271,7 +271,7 @@ Recipients need Python 3 installed (one-time setup).
 
 All application activity is logged to:
 ```
-~/FLAT-data/logfiles/flat_YYYYMMDD_HHMMSS.log
+~/COMPaSS-data/logfiles/compass_YYYYMMDD_HHMMSS.log
 ```
 
 Use the logger in your functions:
@@ -314,7 +314,7 @@ The virtual environment and dependencies are cached, so subsequent runs are fast
 
 ### Debugging
 
-- Check log files in `~/FLAT-data/logfiles/` for errors
+- Check log files in `~/COMPaSS-data/logfiles/` for errors
 - Console shows error-level messages immediately
 - Use `logger.debug()` for detailed troubleshooting
 
@@ -324,7 +324,7 @@ Initialize a git repository for your new app:
 ```bash
 git init
 git add .
-git commit -m "Initial commit based on FLAT template"
+git commit -m "Initial commit based on COMPaSS template"
 ```
 
 The included `.gitignore` excludes:
@@ -344,7 +344,7 @@ The included `.gitignore` excludes:
 
 MIT License - See [LICENSE](LICENSE) or [LICENSE.md](LICENSE.md) for full details.
 
-Copyright (c) 2026 Digital.Grinnell / FLAT Contributors
+Copyright (c) 2026 Digital.Grinnell / COMPaSS Contributors
 
 Free to use, modify, and distribute. Attribution appreciated but not required.
 
@@ -354,14 +354,14 @@ Contributions are welcome! Please feel free to:
 - Report bugs or issues
 - Suggest new features or improvements
 - Submit pull requests
-- Share applications you've built with FLAT
+- Share applications you've built with COMPaSS
 
 ## About
 
-FLAT was created by extracting and generalizing the proven UI framework from OHM (Oral History Manager). It provides a professional starting point for Flet desktop applications, eliminating the need to reinvent common patterns like settings persistence, logging, function management, and help systems.
+COMPaSS was created by extracting and generalizing the proven UI framework from OHM (Oral History Manager). It provides a professional starting point for Flet desktop applications, eliminating the need to reinvent common patterns like settings persistence, logging, function management, and help systems.
 
 The template's architecture has been refined through real-world production use, ensuring reliability and maintainability.
 
-**Repository**: https://github.com/Digital-Grinnell/FLAT
+**Repository**: https://github.com/Digital-Grinnell/COMPaSS
 
 Built with ❤️ using [Flet](https://flet.dev) by the Digital.Grinnell team.
