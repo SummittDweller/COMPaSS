@@ -67,7 +67,8 @@ COMPaSS/
 ├── LICENSE                     # MIT License
 ├── CHANGELOG.md               # Version history
 ├── QUICKSTART.md              # Quick reference guide
-├── FUNCTION_1_LIST_FILES.md   # Help docs for Function 1
+├── FUNCTION_0_APP_SETTINGS.md # Help docs for Function 0
+├── FUNCTION_1_LOAD_DATA.md    # Help docs for Function 1
 ├── FUNCTION_2_COUNT_FILES.md  # Help docs for Function 2
 ├── FUNCTION_3_SYSTEM_INFO.md  # Help docs for Function 3
 └── README.md                   # This file
@@ -80,6 +81,12 @@ When you run the application, these are created automatically:
 ├── logfiles/                   # Application logs
 │   └── compass_YYYYMMDD_HHMMSS.log
 └── persistent.json             # Saved settings and state
+```
+
+In the selected working/output directory:
+```
+<working-output-directory>/
+└── compass_settings.json       # App settings (edited by Function 0)
 ```
 
 ## Customizing COMPaSS for Your Application
@@ -220,7 +227,7 @@ All settings are automatically saved to `~/COMPaSS-data/persistent.json`.
 Once you've built your own functions, clean up the examples:
 
 1. Delete function handlers from `app.py`: `on_function_1_list_files`, `on_function_2_count_files`, `on_function_3_system_info`
-2. Delete help files: `FUNCTION_1_LIST_FILES.md`, `FUNCTION_2_COUNT_FILES.md`, `FUNCTION_3_SYSTEM_INFO.md`
+2. Delete help files: `FUNCTION_1_LOAD_DATA.md`, `FUNCTION_2_COUNT_FILES.md`, `FUNCTION_3_SYSTEM_INFO.md`
 3. Remove entries from `active_functions` list and `functions` dictionary
 4. Update the title and description to match your application
 

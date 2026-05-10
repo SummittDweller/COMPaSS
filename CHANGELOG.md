@@ -120,7 +120,8 @@ https://github.com/Digital-Grinnell/COMPaSS
   - Flet resources and tips
 
 - Function-specific help documentation:
-  - `FUNCTION_1_LIST_FILES.md`
+  - `FUNCTION_0_APP_SETTINGS.md`
+  - `FUNCTION_1_LOAD_DATA.md`
   - `FUNCTION_2_COUNT_FILES.md`
   - `FUNCTION_3_SYSTEM_INFO.md`
 

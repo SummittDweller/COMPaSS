@@ -7,14 +7,15 @@ This template was created from your OHM application by extracting the core frame
 ## What's Included
 
 ### Core Files
-- **app.py** - Main application with 3 example functions
+- **app.py** - Main application with 4 functions (including settings editor)
 - **python_requirements.txt** - Just Flet dependencies
 - **run.sh** / **run.bat** - Launch scripts for macOS/Linux and Windows
 - **.gitignore** - Python/Flet-appropriate exclusions
 
 ### Documentation
 - **README.md** - Comprehensive guide to using and customizing COMPaSS
-- **FUNCTION_1_LIST_FILES.md** - Help for example function 1
+- **FUNCTION_0_APP_SETTINGS.md** - Help for app settings editor (Function 0)
+- **FUNCTION_1_LOAD_DATA.md** - Help for example function 1
 - **FUNCTION_2_COUNT_FILES.md** - Help for example function 2
 - **FUNCTION_3_SYSTEM_INFO.md** - Help for example function 3
 - **CHANGELOG.md** - Version history starting at 1.0.0

@@ -11,8 +11,14 @@ import logging
 import json
 import platform
 import socket
+import zipfile
+import tempfile
+import subprocess
+import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Tuple
+import pandas as pd
 
 # Configure logging
 DATA_DIR = Path.home() / "COMPaSS-data"
@@ -112,6 +118,179 @@ def load_help_document(filename: str) -> str:
         return f"# Error Loading Help\n\n{str(e)}"
 
 
+# Global variable to store the current dataframe for use across functions
+current_dataframe = None
+dataframe_filename = None
+APP_SETTINGS_FILENAME = "compass_settings.json"
+DEFAULT_APP_SETTINGS = {
+    "auto_save_loaded_table": False,
+    "auto_save_format": "csv",
+}
+
+
+def get_app_settings_path(working_dir: str) -> Path:
+    """Return the settings file path for a working directory."""
+    return Path(working_dir) / APP_SETTINGS_FILENAME
+
+
+def ensure_app_settings_file(working_dir: str) -> Path:
+    """Create the app settings file with defaults if it does not exist."""
+    settings_path = get_app_settings_path(working_dir)
+    os.makedirs(settings_path.parent, exist_ok=True)
+    if not settings_path.exists():
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_APP_SETTINGS, f, indent=2, ensure_ascii=False)
+    return settings_path
+
+
+def load_app_settings(working_dir: str) -> Tuple[dict, str]:
+    """Load app settings from the working directory settings file."""
+    try:
+        settings_path = ensure_app_settings_file(working_dir)
+        with open(settings_path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        settings = dict(DEFAULT_APP_SETTINGS)
+        settings.update(loaded)
+        return settings, ""
+    except Exception as e:
+        logger.error(f"Could not load app settings: {str(e)}")
+        return dict(DEFAULT_APP_SETTINGS), f"Error loading app settings: {str(e)}"
+
+
+def save_app_settings(working_dir: str, settings: dict) -> Tuple[bool, str]:
+    """Save app settings to the working directory settings file."""
+    try:
+        settings_path = ensure_app_settings_file(working_dir)
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        return True, str(settings_path)
+    except Exception as e:
+        logger.error(f"Could not save app settings: {str(e)}")
+        return False, f"Error saving app settings: {str(e)}"
+
+
+def parse_bool_text(value: str) -> Optional[bool]:
+    """Parse user-entered boolean text. Returns None if invalid."""
+    lowered = (value or "").strip().lower()
+    if lowered in ["true", "1", "yes", "y", "on"]:
+        return True
+    if lowered in ["false", "0", "no", "n", "off"]:
+        return False
+    return None
+
+
+def parse_auto_save_format(value: str) -> Optional[str]:
+    """Parse and validate auto-save format text. Returns None if invalid."""
+    lowered = (value or "").strip().lower()
+    if lowered in ["csv", "json"]:
+        return lowered
+    return None
+
+
+def _load_gpx_with_gpsbabel(gpx_path: Path) -> Tuple[Optional[pd.DataFrame], str]:
+    """Convert GPX to CSV with GPSBabel and load into a DataFrame."""
+    gpsbabel_path = shutil.which("gpsbabel")
+    if not gpsbabel_path:
+        return None, (
+            "Error: GPX input detected but GPSBabel is not installed or not on PATH. "
+            "Install GPSBabel and retry."
+        )
+
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / f"{gpx_path.stem}_gpsbabel.csv"
+            cmd = [
+                gpsbabel_path,
+                "-i",
+                "gpx",
+                "-f",
+                str(gpx_path),
+                "-o",
+                "unicsv",
+                "-F",
+                str(csv_path),
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                stderr = (result.stderr or "").strip()
+                return None, f"Error: GPSBabel failed to convert GPX file. {stderr}"
+
+            df = pd.read_csv(csv_path)
+            return (
+                df,
+                f"Successfully loaded GPX via GPSBabel: {gpx_path.name}\n"
+                f"Rows: {len(df)}, Columns: {len(df.columns)}",
+            )
+    except Exception as e:
+        logger.error(f"Error converting GPX with GPSBabel: {str(e)}")
+        return None, f"Error loading GPX via GPSBabel: {str(e)}"
+
+
+def load_data_file(file_path: str) -> Tuple[Optional[pd.DataFrame], str]:
+    """
+    Load data from a file (CSV, Excel, JSON, GPX, or ZIP containing supported files).
+    Returns (DataFrame, status_message)
+    """
+    try:
+        file_path = Path(file_path)
+        
+        if not file_path.exists():
+            return None, f"Error: File not found: {file_path}"
+        
+        # Handle ZIP files
+        if file_path.suffix.lower() == ".zip":
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                    zip_ref.extractall(temp_dir)
+                
+                # Look for data files in the extracted contents
+                temp_path = Path(temp_dir)
+                data_files = list(temp_path.glob("**/*.gpx")) + \
+                             list(temp_path.glob("**/*.csv")) + \
+                             list(temp_path.glob("**/*.xlsx")) + \
+                             list(temp_path.glob("**/*.xls")) + \
+                             list(temp_path.glob("**/*.json"))
+                
+                if not data_files:
+                    return None, (
+                        f"Error: No GPX, CSV, Excel, or JSON files found in {file_path.name}"
+                    )
+                
+                # Load the first data file found
+                data_file = data_files[0]
+                df, msg = load_data_file(str(data_file))
+                return df, f"Extracted and loaded from ZIP: {data_file.name}\n{msg}"
+
+        # Handle GPX files via GPSBabel
+        elif file_path.suffix.lower() == ".gpx":
+            return _load_gpx_with_gpsbabel(file_path)
+        
+        # Handle CSV files
+        elif file_path.suffix.lower() == ".csv":
+            df = pd.read_csv(file_path)
+            return df, f"Successfully loaded CSV: {file_path.name}\nRows: {len(df)}, Columns: {len(df.columns)}"
+        
+        # Handle Excel files
+        elif file_path.suffix.lower() in [".xlsx", ".xls"]:
+            df = pd.read_excel(file_path)
+            return df, f"Successfully loaded Excel: {file_path.name}\nRows: {len(df)}, Columns: {len(df.columns)}"
+        
+        # Handle JSON files
+        elif file_path.suffix.lower() == ".json":
+            df = pd.read_json(file_path)
+            return df, f"Successfully loaded JSON: {file_path.name}\nRows: {len(df)}, Columns: {len(df.columns)}"
+        
+        else:
+            return None, (
+                f"Error: Unsupported file type: {file_path.suffix}\n"
+                "Supported types: GPX, CSV, XLSX, XLS, JSON, ZIP"
+            )
+    
+    except Exception as e:
+        logger.error(f"Error loading data file: {str(e)}")
+        return None, f"Error loading file: {str(e)}"
+
+
 def main(page: ft.Page):
     page.title = "COMPaSS - Cache Owner Management Platform and Sites System"
     page.padding = 20
@@ -180,6 +359,11 @@ def main(page: ft.Page):
         if e.path:
             output_dir_field.value = e.path
             storage.set_ui_state("last_output_dir", e.path)
+            try:
+                settings_path = ensure_app_settings_file(e.path)
+                add_log_message(f"Settings file ready: {settings_path.name}")
+            except Exception as ex:
+                add_log_message(f"Warning: Could not prepare settings file: {str(ex)}")
             update_status(f"Output directory set: {Path(e.path).name}")
             page.update()
 
@@ -199,41 +383,205 @@ def main(page: ft.Page):
 
     # ------------------------------------------------------------------ function implementations
 
-    def on_function_1_list_files(e):
-        """Function 1: List all files in input directory."""
-        storage.record_function_usage("Function 1")
+    def on_function_0_app_settings(e):
+        """Function 0: Open and edit app settings in working directory."""
+        storage.record_function_usage("Function 0")
 
-        if not current_directory or not current_directory.exists():
-            update_status("Error: Please select an input directory first", is_error=True)
+        working_dir = output_dir_field.value
+        if not working_dir:
+            update_status("Error: Please select a Working/Output Directory first", is_error=True)
             return
 
-        files = list(current_directory.glob("*"))
-        file_list = [f.name for f in files if f.is_file()]
+        settings, load_error = load_app_settings(working_dir)
+        if load_error:
+            update_status(load_error, is_error=True)
+            return
 
-        result_text = f"Found {len(file_list)} file(s) in {current_directory.name}:\n\n"
-        result_text += "\n".join(f"• {name}" for name in sorted(file_list)) if file_list else "(No files found)"
+        settings_path = get_app_settings_path(working_dir)
+        auto_save_field = ft.TextField(
+            label="auto_save_loaded_table",
+            value=str(settings.get("auto_save_loaded_table", False)).lower(),
+            hint_text="true or false",
+            width=320,
+        )
+        auto_save_format_field = ft.TextField(
+            label="auto_save_format",
+            value=str(settings.get("auto_save_format", "csv")).lower(),
+            hint_text="csv or json",
+            width=320,
+        )
+
+        settings_path_text = ft.Text(
+            f"Settings file: {settings_path}",
+            size=12,
+            color=ft.Colors.GREY_700,
+            selectable=True,
+        )
+
+        def close_dialog(evt):
+            settings_dialog.open = False
+            page.update()
+
+        def save_settings_click(evt):
+            parsed_auto_save = parse_bool_text(auto_save_field.value)
+            if parsed_auto_save is None:
+                update_status(
+                    "Error: auto_save_loaded_table must be true/false (or yes/no, 1/0)",
+                    is_error=True,
+                )
+                return
+
+            parsed_auto_save_format = parse_auto_save_format(auto_save_format_field.value)
+            if parsed_auto_save_format is None:
+                update_status(
+                    "Error: auto_save_format must be csv or json",
+                    is_error=True,
+                )
+                return
+
+            new_settings = {
+                "auto_save_loaded_table": parsed_auto_save,
+                "auto_save_format": parsed_auto_save_format,
+            }
+            ok, save_result = save_app_settings(working_dir, new_settings)
+            if not ok:
+                update_status(save_result, is_error=True)
+                return
+
+            add_log_message(f"Settings saved: {save_result}")
+            update_status("Application settings updated")
+            settings_dialog.open = False
+            page.update()
+
+        settings_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Function 0: App Settings", weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Text(
+                            "Edit app settings and save them to the working directory.",
+                            size=13,
+                        ),
+                        settings_path_text,
+                        ft.Container(height=8),
+                        auto_save_field,
+                        auto_save_format_field,
+                    ],
+                    tight=True,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                width=700,
+                height=300,
+            ),
+            actions=[
+                ft.TextButton("Save", on_click=save_settings_click),
+                ft.TextButton("Cancel", on_click=close_dialog),
+            ],
+        )
+
+        page.overlay.append(settings_dialog)
+        settings_dialog.open = True
+        page.update()
+
+    def on_function_1_load_data(e):
+        """Function 1: Load data from file into Pandas DataFrame."""
+        global current_dataframe, dataframe_filename
+        storage.record_function_usage("Function 1")
+
+        if not file_field.value:
+            update_status(
+                "Error: Please select a data file first (GPX, CSV, Excel, JSON, or ZIP)",
+                is_error=True,
+            )
+            return
+
+        file_path = file_field.value
+        df, status_msg = load_data_file(file_path)
+
+        if df is None:
+            update_status(status_msg, is_error=True)
+            logger.error(f"Function 1: Failed to load - {status_msg}")
+            return
+
+        current_dataframe = df
+        dataframe_filename = Path(file_path).name
+
+        if output_dir_field.value:
+            settings, load_error = load_app_settings(output_dir_field.value)
+            if load_error:
+                add_log_message(load_error)
+            if settings.get("auto_save_loaded_table", False):
+                try:
+                    output_path = Path(output_dir_field.value)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    auto_save_format = settings.get("auto_save_format", "csv").lower()
+                    if auto_save_format not in ["csv", "json"]:
+                        auto_save_format = "csv"
+
+                    save_name = (
+                        f"{dataframe_filename.rsplit('.', 1)[0]}_autosave_{timestamp}."
+                        f"{auto_save_format}"
+                    )
+                    save_file = output_path / save_name
+                    if auto_save_format == "json":
+                        current_dataframe.to_json(save_file, orient="records", indent=2)
+                    else:
+                        current_dataframe.to_csv(save_file, index=False)
+                    add_log_message(f"Auto-saved loaded data to {save_file.name}")
+                except Exception as ex:
+                    add_log_message(f"Auto-save failed: {str(ex)}")
+
+        # Create a summary display of the dataframe
+        summary_text = f"✓ Data Loaded Successfully\n\n"
+        summary_text += f"File: {dataframe_filename}\n"
+        summary_text += f"Rows: {len(df)}\n"
+        summary_text += f"Columns: {len(df.columns)}\n\n"
+        summary_text += "Column Names:\n"
+        summary_text += "\n".join(f"  • {col}" for col in df.columns)
+        summary_text += f"\n\nFirst few rows preview:\n"
+        summary_text += df.head(5).to_string()
 
         def close_dialog(e):
             dialog.open = False
             page.update()
 
+        def save_loaded_data(e):
+            if not output_dir_field.value:
+                add_log_message("Note: Set output directory to save the loaded data")
+                return
+            try:
+                output_path = Path(output_dir_field.value)
+                save_name = dataframe_filename.rsplit(".", 1)[0] + "_loaded.csv"
+                save_file = output_path / save_name
+                current_dataframe.to_csv(save_file, index=False)
+                update_status(f"Data saved to: {save_file.name}")
+                add_log_message(f"Saved loaded data to {save_file.name}")
+            except Exception as ex:
+                update_status(f"Error saving data: {str(ex)}", is_error=True)
+
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Function 1: List Files"),
+            title=ft.Text("Function 1: Load Data", weight=ft.FontWeight.BOLD),
             content=ft.Container(
-                content=ft.Text(result_text, selectable=True),
-                width=600,
-                height=400,
+                content=ft.Column([
+                    ft.Text(summary_text, selectable=True, size=11),
+                ], scroll=ft.ScrollMode.AUTO),
+                width=700,
+                height=500,
             ),
-            actions=[ft.TextButton("Close", on_click=close_dialog)],
+            actions=[
+                ft.TextButton("Save as CSV", on_click=save_loaded_data),
+                ft.TextButton("Close", on_click=close_dialog),
+            ],
         )
 
         page.overlay.append(dialog)
         dialog.open = True
         page.update()
 
-        update_status(f"Listed {len(file_list)} file(s)")
-        logger.info(f"Function 1: Listed {len(file_list)} files from {current_directory}")
+        update_status(f"✓ Loaded data: {len(df)} rows, {len(df.columns)} columns")
+        logger.info(f"Function 1: Loaded data from {dataframe_filename} - {len(df)} rows, {len(df.columns)} columns")
 
     def on_function_2_count_files(e):
         """Function 2: Count files by extension."""
@@ -319,17 +667,24 @@ def main(page: ft.Page):
     # ------------------------------------------------------------------ function management
 
     active_functions = [
+        "function_0_app_settings",
         "function_1_list_files",
         "function_2_count_files",
         "function_3_system_info",
     ]
 
     functions = {
+        "function_0_app_settings": {
+            "label": "0: App Settings",
+            "icon": "⚙️",
+            "handler": on_function_0_app_settings,
+            "help_file": "FUNCTION_0_APP_SETTINGS.md"
+        },
         "function_1_list_files": {
-            "label": "1: List Files",
-            "icon": "📁",
-            "handler": on_function_1_list_files,
-            "help_file": "FUNCTION_1_LIST_FILES.md"
+            "label": "1: Load Data File",
+            "icon": "📊",
+            "handler": on_function_1_load_data,
+            "help_file": "FUNCTION_1_LOAD_DATA.md"
         },
         "function_2_count_files": {
             "label": "2: Count Files by Extension",
@@ -444,6 +799,12 @@ def main(page: ft.Page):
         read_only=True,
         expand=True,
     )
+
+    if output_dir_field.value and Path(output_dir_field.value).exists():
+        try:
+            ensure_app_settings_file(output_dir_field.value)
+        except Exception as ex:
+            add_log_message(f"Warning: Could not prepare settings file at startup: {str(ex)}")
 
     file_field = ft.TextField(
         label="Select File",
