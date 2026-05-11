@@ -2,3 +2,4 @@ flet==0.25.2
 flet-desktop==0.25.2
 pandas>=2.0.0
 openpyxl>=3.0.0
+cryptography>=41.0.0

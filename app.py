@@ -19,6 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 import pandas as pd
+from cryptography.fernet import Fernet, InvalidToken
 
 # Configure logging
 DATA_DIR = Path.home() / "COMPaSS-data"
@@ -45,6 +46,90 @@ logging.getLogger("flet_desktop").setLevel(logging.WARNING)
 
 # Persistent storage file
 PERSISTENCE_FILE = DATA_DIR / "persistent.json"
+
+# Encryption key file
+ENCRYPTION_KEY_FILE = DATA_DIR / "encryption_key"
+
+# Sensitive fields that should be encrypted in settings
+SENSITIVE_FIELDS = ["project_gc_password", "project_gc_username", "project_gc_login_url"]
+
+
+def get_or_create_encryption_key() -> bytes:
+    """
+    Get or create the encryption key from ~/.COMPaSS-data/encryption_key.
+    Returns the Fernet key as bytes.
+    """
+    if ENCRYPTION_KEY_FILE.exists():
+        try:
+            with open(ENCRYPTION_KEY_FILE, "rb") as f:
+                key = f.read()
+            # Verify it's a valid Fernet key
+            Fernet(key)
+            return key
+        except Exception as e:
+            logger.warning(f"Invalid encryption key file, regenerating: {str(e)}")
+    
+    # Generate a new key
+    key = Fernet.generate_key()
+    try:
+        with open(ENCRYPTION_KEY_FILE, "wb") as f:
+            f.write(key)
+        # Restrict permissions to owner only
+        os.chmod(ENCRYPTION_KEY_FILE, 0o600)
+    except Exception as e:
+        logger.error(f"Could not save encryption key: {str(e)}")
+    
+    return key
+
+
+def encrypt_sensitive_settings(settings: dict) -> dict:
+    """
+    Encrypt sensitive fields in settings dictionary.
+    Returns a new dictionary with encrypted values.
+    """
+    try:
+        key = get_or_create_encryption_key()
+        cipher = Fernet(key)
+        encrypted = dict(settings)
+        
+        for field in SENSITIVE_FIELDS:
+            if field in encrypted and encrypted[field]:
+                plaintext = str(encrypted[field])
+                ciphertext = cipher.encrypt(plaintext.encode()).decode()
+                encrypted[field] = ciphertext
+        
+        return encrypted
+    except Exception as e:
+        logger.error(f"Could not encrypt settings: {str(e)}")
+        return settings
+
+
+def decrypt_sensitive_settings(settings: dict) -> dict:
+    """
+    Decrypt sensitive fields in settings dictionary.
+    Returns a new dictionary with decrypted values.
+    Gracefully handles already-decrypted values and encryption errors.
+    """
+    try:
+        key = get_or_create_encryption_key()
+        cipher = Fernet(key)
+        decrypted = dict(settings)
+        
+        for field in SENSITIVE_FIELDS:
+            if field in decrypted and decrypted[field]:
+                ciphertext = decrypted[field]
+                try:
+                    # Try to decrypt; if it fails, assume it's already plaintext
+                    plaintext = cipher.decrypt(ciphertext.encode()).decode()
+                    decrypted[field] = plaintext
+                except (InvalidToken, ValueError):
+                    # Already plaintext or corrupted; leave as-is
+                    pass
+        
+        return decrypted
+    except Exception as e:
+        logger.error(f"Could not decrypt settings: {str(e)}")
+        return settings
 
 
 class PersistentStorage:
@@ -122,9 +207,17 @@ def load_help_document(filename: str) -> str:
 current_dataframe = None
 dataframe_filename = None
 APP_SETTINGS_FILENAME = "compass_settings.json"
+PROJECT_GC_LOGIN_URL_DEFAULT = (
+    "https://project-gc.com/wiki/index.php?title=Special:UserLogin&returnto=Main+Page"
+)
+PROJECT_GC_USERNAME_DEFAULT = "SummittDweller"
+PROJECT_GC_PASSWORD_DEFAULT = "$ummittDw3ll3r"
 DEFAULT_APP_SETTINGS = {
     "auto_save_loaded_table": False,
     "auto_save_format": "csv",
+    "project_gc_login_url": PROJECT_GC_LOGIN_URL_DEFAULT,
+    "project_gc_username": PROJECT_GC_USERNAME_DEFAULT,
+    "project_gc_password": PROJECT_GC_PASSWORD_DEFAULT,
 }
 
 
@@ -149,6 +242,8 @@ def load_app_settings(working_dir: str) -> Tuple[dict, str]:
         settings_path = ensure_app_settings_file(working_dir)
         with open(settings_path, "r", encoding="utf-8") as f:
             loaded = json.load(f)
+        # Decrypt sensitive fields
+        loaded = decrypt_sensitive_settings(loaded)
         settings = dict(DEFAULT_APP_SETTINGS)
         settings.update(loaded)
         return settings, ""
@@ -158,11 +253,15 @@ def load_app_settings(working_dir: str) -> Tuple[dict, str]:
 
 
 def save_app_settings(working_dir: str, settings: dict) -> Tuple[bool, str]:
-    """Save app settings to the working directory settings file."""
+    """Save app settings to the working directory settings file.
+    Sensitive fields are encrypted before saving.
+    """
     try:
         settings_path = ensure_app_settings_file(working_dir)
+        # Encrypt sensitive fields before saving
+        settings_to_save = encrypt_sensitive_settings(settings)
         with open(settings_path, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
+            json.dump(settings_to_save, f, indent=2, ensure_ascii=False)
         return True, str(settings_path)
     except Exception as e:
         logger.error(f"Could not save app settings: {str(e)}")
@@ -245,11 +344,18 @@ def load_data_file(file_path: str) -> Tuple[Optional[pd.DataFrame], str]:
                 
                 # Look for data files in the extracted contents
                 temp_path = Path(temp_dir)
-                data_files = list(temp_path.glob("**/*.gpx")) + \
-                             list(temp_path.glob("**/*.csv")) + \
-                             list(temp_path.glob("**/*.xlsx")) + \
-                             list(temp_path.glob("**/*.xls")) + \
-                             list(temp_path.glob("**/*.json"))
+                gpx_files = sorted(temp_path.glob("**/*.gpx"), key=lambda p: p.name.lower())
+                csv_files = sorted(temp_path.glob("**/*.csv"), key=lambda p: p.name.lower())
+                xlsx_files = sorted(temp_path.glob("**/*.xlsx"), key=lambda p: p.name.lower())
+                xls_files = sorted(temp_path.glob("**/*.xls"), key=lambda p: p.name.lower())
+                json_files = sorted(temp_path.glob("**/*.json"), key=lambda p: p.name.lower())
+
+                # Geocaching exports can include both "<name>.gpx" and "<name>-wpts.gpx".
+                # Prefer the main GPX (without -wpts) to get the full cache set.
+                primary_gpx = [p for p in gpx_files if "-wpts" not in p.stem.lower()]
+                preferred_gpx = primary_gpx if primary_gpx else gpx_files
+
+                data_files = preferred_gpx + csv_files + xlsx_files + xls_files + json_files
                 
                 if not data_files:
                     return None, (
@@ -410,6 +516,26 @@ def main(page: ft.Page):
             hint_text="csv or json",
             width=320,
         )
+        project_gc_login_url_field = ft.TextField(
+            label="project_gc_login_url",
+            value=str(settings.get("project_gc_login_url", PROJECT_GC_LOGIN_URL_DEFAULT)),
+            hint_text="https://project-gc.com/...",
+            width=660,
+        )
+        project_gc_username_field = ft.TextField(
+            label="project_gc_username",
+            value=str(settings.get("project_gc_username", PROJECT_GC_USERNAME_DEFAULT)),
+            hint_text="project-gc username",
+            width=320,
+        )
+        project_gc_password_field = ft.TextField(
+            label="project_gc_password",
+            value=str(settings.get("project_gc_password", PROJECT_GC_PASSWORD_DEFAULT)),
+            hint_text="project-gc password",
+            password=True,
+            can_reveal_password=True,
+            width=320,
+        )
 
         settings_path_text = ft.Text(
             f"Settings file: {settings_path}",
@@ -442,6 +568,12 @@ def main(page: ft.Page):
             new_settings = {
                 "auto_save_loaded_table": parsed_auto_save,
                 "auto_save_format": parsed_auto_save_format,
+                "project_gc_login_url": (project_gc_login_url_field.value or "").strip()
+                or PROJECT_GC_LOGIN_URL_DEFAULT,
+                "project_gc_username": (project_gc_username_field.value or "").strip()
+                or PROJECT_GC_USERNAME_DEFAULT,
+                "project_gc_password": project_gc_password_field.value
+                or PROJECT_GC_PASSWORD_DEFAULT,
             }
             ok, save_result = save_app_settings(working_dir, new_settings)
             if not ok:
@@ -467,12 +599,19 @@ def main(page: ft.Page):
                         ft.Container(height=8),
                         auto_save_field,
                         auto_save_format_field,
+                        project_gc_login_url_field,
+                        ft.Row(
+                            controls=[
+                                project_gc_username_field,
+                                project_gc_password_field,
+                            ]
+                        ),
                     ],
                     tight=True,
                     scroll=ft.ScrollMode.AUTO,
                 ),
                 width=700,
-                height=300,
+                height=360,
             ),
             actions=[
                 ft.TextButton("Save", on_click=save_settings_click),
@@ -771,18 +910,27 @@ def main(page: ft.Page):
         page.update()
 
     def get_sorted_function_options(function_list):
-        """Return dropdown options sorted by function number."""
-        opts = []
+        """Return dropdown options sorted by numeric prefix in each function label."""
+        sortable = []
         for func_key in function_list:
             if func_key in functions:
                 f = functions[func_key]
-                opts.append(
-                    ft.dropdown.Option(
-                        key=func_key,
-                        text=f"{f['icon']} {f['label']}"
-                    )
-                )
-        return opts
+                label = f.get("label", "")
+                try:
+                    number = int(label.split(":", 1)[0].strip())
+                except Exception:
+                    number = 999
+                sortable.append((number, func_key, f))
+
+        sortable.sort(key=lambda item: (item[0], item[2].get("label", "")))
+
+        return [
+            ft.dropdown.Option(
+                key=func_key,
+                text=f"{f.get('icon', '')} {f.get('label', func_key)}".strip(),
+            )
+            for _, func_key, f in sortable
+        ]
 
     # ------------------------------------------------------------------ UI fields
 
@@ -1064,7 +1212,13 @@ def main(page: ft.Page):
     )
 
     # Initialize function dropdown
-    active_function_dropdown.options = get_sorted_function_options(active_functions)
+    # Build from the function registry to avoid missing options if the active list drifts.
+    registered_function_keys = [k for k in active_functions if k in functions]
+    for func_key in functions:
+        if func_key not in registered_function_keys:
+            registered_function_keys.append(func_key)
+
+    active_function_dropdown.options = get_sorted_function_options(registered_function_keys)
     page.update()
 
     logger.info("UI initialised successfully")
