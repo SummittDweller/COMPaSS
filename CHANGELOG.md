@@ -7,6 +7,134 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-05-11
+
+### Development Session Summary
+Implemented comprehensive data management pipeline with persistent settings, multi-format data loading, and encrypted credential storage. This release transforms COMPaSS from a template application into a functional geocaching data management platform.
+
+### Added
+
+#### Function 0: App Settings Manager
+- **Settings Editor Dialog**: Modal popup with text input fields for all application settings
+- **Persistent Configuration**: Settings stored in `compass_settings.json` within the working directory
+- **Settings Available**:
+  - `auto_save_loaded_table`: Boolean toggle for auto-saving loaded data
+  - `auto_save_format`: Format selection (csv or json) for auto-saved files
+  - `project_gc_login_url`: Base login URL for project-gc website
+  - `project_gc_username`: Project-gc account username
+  - `project_gc_password`: Project-gc account password (masked in UI, encrypted at rest)
+- **Validation**: Input validation with helpful error messages for invalid boolean/format values
+- **Backward Compatibility**: Gracefully merges loaded settings with defaults if missing
+
+#### Function 1: Multi-Format Data Loader
+- **Supported File Formats**:
+  - ✅ GPX (GroundSpeak GPS exchange format) — primary geocaching export format
+  - ✅ CSV (Comma-separated values) — with automatic detection
+  - ✅ Excel (.xlsx, .xls) — via openpyxl
+  - ✅ JSON (Records format)
+  - ✅ ZIP archives — automatic extraction with format detection
+  
+- **GPX Loading via GPSBabel**:
+  - Subprocess integration with `/opt/homebrew/bin/gpsbabel` (macOS) or system PATH
+  - Converts GPX files to CSV in-memory using temporary files
+  - Preserves all GPS and waypoint data
+  - Automatic cleanup of temporary conversion files
+  - Graceful fallback if GPSBabel not found
+
+- **ZIP File Handling**:
+  - Automatic extraction to temporary directory
+  - Intelligent file selection (prefers primary GPX over waypoints-only exports)
+  - Filename heuristics: deprioritizes files with "-wpts" suffix
+  - Support for nested directory structures
+
+- **Data Output**:
+  - Loads data into Pandas DataFrame
+  - Shows preview dialog with:
+    - Row and column counts
+    - Column names
+    - First 5 rows preview
+  - Returns both data and status message for logging
+
+#### Auto-Save System
+- **Conditional Auto-Save**: Respects `auto_save_loaded_table` setting
+- **Timestamped Filenames**: Format `{base}_autosave_{YYYYMMDD_HHMMSS}.{csv|json}`
+- **Format Selection**: Uses `auto_save_format` setting (csv or json)
+- **Automatic Triggering**: Activates after successful data load if enabled
+- **Manual Save Option**: Always available via "Save" button in preview dialog
+
+#### Encrypted Credential Storage
+- **Encryption Method**: AES-256 symmetric encryption using Fernet (cryptography library)
+- **Encrypted Fields**: `project_gc_password`, `project_gc_username`, `project_gc_login_url`
+- **Key Management**:
+  - Encryption key auto-generated on first use
+  - Stored in `~/.COMPaSS-data/encryption_key`
+  - Restricted permissions (0o600 — owner read/write only)
+  - Key persists across sessions for consistent decryption
+  
+- **User Experience**:
+  - Users enter credentials as plain text in Function 0 editor
+  - Encryption/decryption transparent — no additional UI changes
+  - Settings file safe for GitHub/version control (credentials encrypted at rest)
+  
+- **Implementation**:
+  - `encrypt_sensitive_settings()`: Encrypts before JSON save
+  - `decrypt_sensitive_settings()`: Decrypts after JSON load
+  - Graceful handling of already-plaintext values (migration support)
+  - Non-sensitive fields remain unencrypted for readability
+
+### Changed
+
+#### Dependencies
+- **Added**: `cryptography>=41.0.0` — for AES-256 encryption of sensitive settings
+- **Existing**: pandas, openpyxl unchanged; GPSBabel expected as external tool
+
+#### Documentation
+- Updated `FUNCTION_0_APP_SETTINGS.md`: Added security note about encryption and clarified settings purpose
+- Updated `FUNCTION_1_LOAD_DATA.md`: Comprehensive guide for multi-format loading and auto-save
+- Updated `README.md`: Noted new settings file location and structure
+
+#### UI/UX
+- Function dropdown now includes Function 0 with "⚙️ App Settings" label
+- Improved dropdown sorting to prioritize Function 0 (numeric prefix sorting)
+- Settings editor uses password field for project_gc_password (masked input)
+- Help documentation system supports new function help files
+
+### Technical Implementation
+
+#### Code Architecture
+- `get_or_create_encryption_key()`: One-time key setup with persistence
+- `encrypt_sensitive_settings(dict) → dict`: Encrypts before save
+- `decrypt_sensitive_settings(dict) → dict`: Decrypts after load, handles legacy plaintext
+- `load_app_settings()`: Integrates decrypt step
+- `save_app_settings()`: Integrates encrypt step
+- `_load_gpx_with_gpsbabel()`: Subprocess wrapper for GPX conversion
+- `load_data_file()`: Router function dispatching to appropriate loader based on file type
+
+#### File System Changes
+- New file: `~/.COMPaSS-data/encryption_key` (created automatically on first use)
+- New file: `{working_dir}/compass_settings.json` (app settings, encrypted sensitive fields)
+- Auto-save files: `{working_dir}/{name}_autosave_{YYYYMMDD_HHMMSS}.{csv|json}`
+
+### Testing & Validation
+
+#### Verified Functionality
+- ✅ Encryption/decryption round-trip (plaintext → encrypted → plaintext)
+- ✅ GPX loading from GroundSpeak exports (tested with 91-waypoint cache)
+- ✅ ZIP file selection with intelligent file preference
+- ✅ Auto-save filename generation with correct timestamp format
+- ✅ Settings save/load cycle via Function 0 popup
+- ✅ Backward compatibility with plaintext settings
+- ✅ All code compiles cleanly, no syntax errors
+- ✅ No diagnostic errors detected
+
+#### Debugging Context
+- ZIP handling: Fixed file selection to prefer primary GPX over -wpts variant
+- Function 0 visibility: Fixed dropdown sorting and function registration
+- GPSBabel integration: Subprocess error handling for missing tool
+- Settings storage: Verified JSON serialization of encrypted credentials
+
+---
+
 ## [1.0.0] - 2026-05-04
 
 ### Initial Release
